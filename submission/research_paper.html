@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CTR Opportunity Scoring: Ranking Pages for Title/Snippet Review</title>
+    <style>
+        :root {
+            --primary-color: #0f172a;
+            --accent-color: #2563eb;
+            --text-color: #334155;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --code-bg: #f1f5f9;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        article {
+            max-width: 850px;
+            margin: 0 auto;
+            background: var(--card-bg);
+            padding: 3rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        header {
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            font-size: 2.25rem;
+            line-height: 1.2;
+            margin-top: 0;
+        }
+
+        .meta-info {
+            font-size: 0.95rem;
+            color: #64748b;
+        }
+
+        .meta-info strong {
+            color: var(--primary-color);
+        }
+
+        h2 {
+            color: var(--primary-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.3rem;
+            margin-top: 2rem;
+        }
+
+        h3 {
+            color: var(--primary-color);
+            margin-top: 1.5rem;
+        }
+
+        .abstract {
+            background-color: #eff6ff;
+            border-left: 4px solid var(--accent-color);
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .abstract h2 {
+            margin-top: 0;
+            border-bottom: none;
+            font-size: 1.25rem;
+            color: var(--accent-color);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+            font-size: 0.95rem;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: var(--code-bg);
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background-color: #f8fafc;
+        }
+
+        code, pre {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            background-color: var(--code-bg);
+            border-radius: 4px;
+        }
+
+        code {
+            padding: 0.2rem 0.4rem;
+            font-size: 0.9em;
+            color: #0f172a;
+        }
+
+        pre {
+            padding: 1rem;
+            overflow-x: auto;
+            border: 1px solid var(--border-color);
+        }
+
+        pre code {
+            padding: 0;
+            background: none;
+        }
+
+        ul, ol {
+            padding-left: 1.5rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        .callout {
+            background-color: #fffbe3;
+            border-left: 4px solid #f59e0b;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0 4px 4px 0;
+        }
+
+        footer {
+            margin-top: 3rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.875rem;
+            color: #64748b;
+        }
+
+        @media (max-width: 640px) {
+            body {
+                padding: 0;
+            }
+            article {
+                padding: 1.5rem;
+                border-radius: 0;
+                box-shadow: none;
+            }
+            table {
+                display: block;
+                overflow-x: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<article>
+    <header>
+        <h1>CTR Opportunity Scoring: Ranking Pages for Title/Snippet Review</h1>
+        <p class="meta-info">
+            <strong>Roha</strong> &bull; ML Internship Capstone, Search Intelligence &bull; September 2026
+        </p>
+    </header>
+
+    <section class="abstract">
+        <h2>Abstract</h2>
+        <p>One-third of pages ranking in positions 1–20 capture less than 0.5% click-through rate despite hundreds of monthly impressions—indicating a "ranking but invisible" opportunity more cheaply fixed by title/snippet rewrite than full content refresh. This work trains a binary classifier on 28,795 search-data records to rank pages by their fit to this pattern, validating precision@50 against a hand-built rule baseline and analyzing model behavior under client-grouped test splits. A simpler variant excluding leaked position/impression signals achieves 0.48 precision@50 on secondary features (word count, scroll rate, content age), suggesting genuine but modest structure in engagement metrics. The ranked list is decision-support for a content ops team prioritizing review capacity (~50 pages/week against a ~9,700-page candidate backlog), not a verdict; limitations include single-window snapshot evaluation and rule-based label design.</p>
+    </section>
+
+    <section id="introduction">
+        <h2>1. Introduction / Problem Statement</h2>
+        
+        <h3>The Gap</h3>
+        <p>Analysis of 30,000 content pages over a trailing 90-day window revealed that <strong>32.5% of pages ranking in top-20 positions pull less than 0.5% CTR</strong> (median 0.07%) despite median 731 monthly impressions. At 50 pages/week review capacity, a flat threshold-based queue would require ~195 weeks (~4 years) to clear this backlog. The ranking itself is working—median position is 10.8 (page 1–2)—but the click-through is not.</p>
+
+        <h3>Why This Matters</h3>
+        <p>A title/snippet rewrite costs 30–60 minutes per page; a full content refresh costs days. If CTR is being suppressed by poor metadata at a given rank, metadata review is the faster, lower-risk fix, and should be triaged <em>before</em> deciding whether full refresh is needed. A ranked scoring system can prioritize the reviewers' limited weekly capacity toward pages most likely to have this specific problem.</p>
+
+        <h3>What This Work Does</h3>
+        <p>This capstone builds a machine-learning classifier to score pages by their likelihood of fitting the "high visibility, low click capture" pattern. The output is a ranked list for human review, validated against transparent decision-rule baselines and inspected for sign of real signal vs. label leakage. Limitations are documented honestly; the goal is decision-support, not automation.</p>
+    </section>
+
+    <section id="data">
+        <h2>2. Data</h2>
+
+        <h3>Source</h3>
+        <p>FlyRank ML Internship dataset, gated, 2-minute access via Hugging Face.</p>
+
+        <h3>Unit of Analysis</h3>
+        <p>One row = one content item for one client (<code>content_id</code> + <code>client_id</code>), aggregated over a fixed <strong>90-day trailing window as of export date</strong>. No time-series; one snapshot.</p>
+
+        <h3>Filtering &amp; Grain</h3>
+        <ul>
+            <li><strong>Start:</strong> 30,000 rows (starter CSV, all have <code>impressions_90d &gt; 0</code> and <code>content_age_days &gt;= 90</code>)</li>
+            <li><strong>Dropped:</strong> 1,205 rows where <code>avg_position == 0</code> (flagged in data dictionary as "no position data," not rank 0)</li>
+            <li><strong>Final working set:</strong> 28,795 rows</li>
+        </ul>
+
+        <h3>Key Fields</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Field</th>
+                    <th>Count</th>
+                    <th>Missing %</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>avg_position</code></td>
+                    <td>28,795</td>
+                    <td>0.0</td>
+                    <td>Position in SERP, median 10.8</td>
+                </tr>
+                <tr>
+                    <td><code>impressions_90d</code></td>
+                    <td>28,795</td>
+                    <td>0.0</td>
+                    <td>Impressions over window, median 731, max 517k</td>
+                </tr>
+                <tr>
+                    <td><code>clicks_90d</code></td>
+                    <td>28,795</td>
+                    <td>0.0</td>
+                    <td>Clicks, derived <code>ctr = clicks / impressions</code></td>
+                </tr>
+                <tr>
+                    <td><code>word_count</code></td>
+                    <td>21,077</td>
+                    <td>26.7</td>
+                    <td>Content length, max 40k+ words</td>
+                </tr>
+                <tr>
+                    <td><code>scroll_rate</code></td>
+                    <td>28,755</td>
+                    <td>0.4</td>
+                    <td>Engagement, 119 rows exceed 100% (measurement system difference, not clipped)</td>
+                </tr>
+                <tr>
+                    <td><code>content_age_days</code></td>
+                    <td>28,795</td>
+                    <td>0.0</td>
+                    <td>Days since publish, median ~400</td>
+                </tr>
+                <tr>
+                    <td><code>freshness_tier</code>, <code>content_type</code>, <code>main_intent</code></td>
+                    <td>28,795</td>
+                    <td>0.0–5.6</td>
+                    <td>Categorical features, pre-binned</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Public Safety</h3>
+        <p>No client names, domains, URLs, query text, or raw keyword data in this paper. All identifiers are pseudonymized (<code>client_*</code>, <code>content_*</code>). Benchmark curves (<code>expected_ctr</code> by position) are external assumptions, not claims about Google's algorithm.</p>
+
+        <h3>Clients &amp; Concentration</h3>
+        <ul>
+            <li><strong>32 unique clients</strong> back this 30,000-row set</li>
+            <li><strong>Top 5 clients = 56.8%</strong> of rows</li>
+            <li><strong>Train split:</strong> 23 clients (22,024 rows) | <strong>Test split:</strong> 8 clients (6,771 rows)</li>
+            <li>No client overlap between train and test (leakage check passed)</li>
+        </ul>
+    </section>
+
+    <section id="methodology">
+        <h2>3. Methodology</h2>
+
+        <h3>Label Definition</h3>
+        <p><strong>Binary flag:</strong> page qualifies as a CTR opportunity if <em>all three</em> of:</p>
+        <ol>
+            <li><code>avg_position</code> &le; 20 (ranking on page 1–2)</li>
+            <li><code>impressions_90d</code> &ge; 500 (enough visibility to trust the CTR sample)</li>
+            <li><code>ctr</code> &lt; 0.5% (underperforming the position)</li>
+        </ol>
+        <p>This is a <strong>rule-based proxy</strong>, not an observed future outcome. The decision to use these thresholds came from human review (w01) and capacity planning (9,759 qualifying rows, 50/week = ~195 weeks unranked). Real validation would require either (a) a future-window outcome check (did CTR rise post-review?) or (b) human reviewer feedback on a held-out top-50 list.</p>
+        <p><strong>Label rate (base rate):</strong> 0.339 (33.9% of rows are positive)</p>
+
+        <h3>Features</h3>
+        <p><strong>Numeric (8):</strong></p>
+        <ul>
+            <li><code>avg_position</code>, <code>impressions_90d</code> — position and visibility (the main structural predictors)</li>
+            <li><code>word_count</code>, <code>content_age_days</code>, <code>days_since_last_update</code> — content maturity</li>
+            <li><code>scroll_rate</code>, <code>engagement_rate</code> — on-page engagement proxy</li>
+            <li><code>has_word_count</code> — binary, whether word_count is available (26.7% missing)</li>
+        </ul>
+
+        <p><strong>Categorical (4):</strong></p>
+        <ul>
+            <li><code>content_type</code>, <code>main_intent</code>, <code>competition_level</code>, <code>freshness_tier</code> — context and tier flags</li>
+        </ul>
+
+        <p><strong>Explicitly Excluded &amp; Why:</strong></p>
+        <ul>
+            <li><code>ctr</code> — literal component of label (definitional leakage)</li>
+            <li><code>clicks_90d</code> — drives <code>ctr</code>, also implicit in label</li>
+            <li><code>trend_direction</code>, <code>trend_pct</code> — project-wide label-trap fields (overlap with low-CTR rule)</li>
+            <li><code>impressions_last_30d</code>, <code>impressions_prev_30d</code> — sub-windows of <code>impressions_90d</code> (redundant, plus window integrity check showed no leakage)</li>
+            <li><code>provider_used</code>, <code>model_used</code> — describe production, not search signal; 71–91% missing</li>
+            <li><code>ai_sessions_90d</code> — only 6.4% of rows have any AI session; AUC=0.502 (noise level)</li>
+        </ul>
+
+        <h3>Train/Test Split</h3>
+        <p><strong>Strategy:</strong> Client-grouped shuffle split. All rows for each client go entirely into train <em>or</em> test, never split.</p>
+        <ul>
+            <li><strong>Why:</strong> Client concentration (top 5 = 56.8%) means random split leaks client patterns into test. Grouped split forces the model to generalize to unseen clients.</li>
+            <li><strong>Result:</strong> Train 22,024 rows / 23 clients &rarr; Test 6,771 rows / 8 clients, zero overlap</li>
+        </ul>
+
+        <h3>Baseline (Week 4)</h3>
+        <p>Hand-coded decision tree with transparent reason codes:</p>
+<pre><code>if not (impressions &gt;= 500 &amp; position &lt;= 20): not_eligible
+elif position &lt;= 3 &amp; ctr &lt; 1.0: page1_ctr_gap  
+elif position &gt; 3 &amp; position &lt;= 20 &amp; ctr &lt; 0.5: low_ctr_visible_page
+elif impressions &gt;= 2000: high_volume_opportunity
+else: marginal_opportunity</code></pre>
+        <ul>
+            <li><strong>Baseline precision@50:</strong> 0.60</li>
+            <li><strong>Baseline precision@20:</strong> 0.55</li>
+            <li><strong>Random floor (base rate):</strong> 0.32</li>
+        </ul>
+
+        <h3>Models Trained</h3>
+        <p><strong>Model 1: Logistic Regression (full features)</strong></p>
+        <ul>
+            <li>Preprocessor: StandardScaler (numeric) + OneHotEncoder (categorical)</li>
+            <li>Solver: lbfgs, max_iter=500</li>
+            <li>Purpose: Fast baseline, interpretability</li>
+        </ul>
+
+        <p><strong>Model 2: Random Forest (full features)</strong></p>
+        <ul>
+            <li>n_estimators=100, max_depth=15, random_state=42</li>
+            <li>Purpose: Main model, nonlinear patterns</li>
+            <li><strong>Caveat:</strong> Precision@50 = 0.98 on test split—suspiciously perfect. Analysis found the top 2 features are <code>impressions_90d</code> (0.364) and <code>avg_position</code> (0.351), which <em>directly comprise 2 of 3 components of the label itself</em>. Likely overfitting to label structure rather than discovering new signal.</li>
+        </ul>
+
+        <p><strong>Model 3: Random Forest (harder, without position/impressions)</strong></p>
+        <ul>
+            <li>Features: word_count, content_age_days, days_since_last_update, scroll_rate, engagement_rate, content_type, main_intent, competition_level, freshness_tier</li>
+            <li>Purpose: Honest signal test—can secondary engagement metrics alone score pages?</li>
+            <li>Precision@50 = 0.48, Precision@20 = 0.50 (more credible than Model 2)</li>
+            <li>Top features: word_count (0.286), scroll_rate (0.243), content_age_days (0.204)</li>
+        </ul>
+
+        <h3>Validation Design</h3>
+        <ul>
+            <li><strong>Metric:</strong> Precision@K (K=20, 50)—only top K predictions are actionable per reviewer weekly capacity</li>
+            <li><strong>Split:</strong> Client-grouped (no data leakage across train/test clients)</li>
+            <li><strong>Comparison:</strong> vs. hand-coded baseline on same test set, same metric</li>
+        </ul>
+    </section>
+
+    <section id="results">
+        <h2>4. Results</h2>
+
+        <h3>Precision@K Comparison</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Model</th>
+                    <th>Precision@20</th>
+                    <th>Precision@50</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Baseline (Week 4 rule)</td>
+                    <td>0.55</td>
+                    <td>0.60</td>
+                    <td>Hand-coded thresholds</td>
+                </tr>
+                <tr>
+                    <td>Logistic Regression</td>
+                    <td>0.70</td>
+                    <td>0.58</td>
+                    <td>Linear model, full features</td>
+                </tr>
+                <tr>
+                    <td>Random Forest (full)</td>
+                    <td>1.00</td>
+                    <td>0.98</td>
+                    <td><strong>Overfitted to label structure</strong></td>
+                </tr>
+                <tr>
+                    <td>Random Forest (harder)</td>
+                    <td>0.50</td>
+                    <td>0.48</td>
+                    <td>No position/impressions—secondary signals only</td>
+                </tr>
+                <tr>
+                    <td>Random Floor</td>
+                    <td>0.32</td>
+                    <td>0.32</td>
+                    <td>Base rate (33.9% label rate)</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Interpretation</h3>
+        <p><strong>Model 2 (Random Forest, full features) is too good to be true.</strong> Precision@50 = 0.98 means 49 of 50 top-ranked pages satisfy the label rule. This matches the data: the model's top features are the two structural components of the label (<code>impressions_90d</code>, <code>avg_position</code>), so it's essentially learning a compressed version of the rule itself, not discovering new signal. This is <strong>model leakage</strong>, not real performance.</p>
+
+        <p><strong>Model 3 (Random Forest, harder) is more honest.</strong> Dropping position and impressions forces the model onto secondary signals:</p>
+        <ul>
+            <li><strong>word_count</strong> (28.6% importance): Longer content slightly more likely to be flagged, surprising given w04 signal audit showed word_count correlation with CTR was weak (~-0.1). The model may be picking up on confounding (e.g., certain content types are longer <em>and</em> have CTR issues).</li>
+            <li><strong>scroll_rate</strong> (24.3% importance): Engagement is real, but precision@50 stays at 0.48, barely above random—modest signal, not strong.</li>
+            <li><strong>content_age_days</strong> (20.4% importance): Older pages are slightly more likely to be flagged, consistent with the idea that older content needs refresh.</li>
+        </ul>
+
+        <p>Precision@50 = 0.48 is <strong>not a strong improvement</strong> over the baseline's 0.60. The honest takeaway: position and impressions structure the opportunity class well, but engagement metrics alone are weak predictors. For the review team, this means:</p>
+        <ul>
+            <li>A rank-by-position + impressions is practical and hard to beat.</li>
+            <li>Engagement metrics (scroll, word count) add modest refinement but aren't transformative.</li>
+            <li>Future work should include actual outcome data (did CTR improve post-review?) to train on <em>real</em> lift, not rule compliance.</li>
+        </ul>
+
+        <h3>Top-20 Predictions (Model 3)</h3>
+        <p>Model's top 20 pages by predicted probability (sample):</p>
+        <ul>
+            <li>Median predicted score: 0.95–0.98 (model is confident)</li>
+            <li>False positives observed: 9 of top 20 have <code>ctr &gt;= 0.5</code> (model flagged them but they don't satisfy the rule, suggesting they rank better in reality)</li>
+            <li>False negatives: Some pages with strong engagement (scroll_rate &gt; 5) still score below 0.50, as the model downweights position/impressions</li>
+        </ul>
+
+        <p><strong>Example false positives (Model 3 flagged, rule didn't):</strong></p>
+        <ul>
+            <li><code>content_2f95ac170c67</code>: 4,660 words, scroll_rate 0%, content_age 140d, predicted 0.987 &rarr; actual CTR 0.8% (above threshold, not an opportunity)</li>
+            <li><code>content_99af6f9fbda3</code>: 2,774 words, scroll_rate 0%, content_age 95d, predicted 0.980 &rarr; actual CTR 0.6% (above threshold)</li>
+        </ul>
+
+        <p>These are long, recent articles with zero scroll activity—the model scores them high because word_count is high, but they don't satisfy the CTR &lt; 0.5% threshold. Suggests word_count importance is <strong>not causal</strong> (writing longer doesn't fix low CTR) but <strong>correlational</strong> (certain content types are long and have CTR problems).</p>
+    </section>
+
+    <section id="limitations">
+        <h2>5. Limitations &amp; Honest Framing</h2>
+
+        <ol>
+            <li>
+                <strong>Single Snapshot, No Future Validation</strong><br>
+                This dataset is one 90-day window. There is <strong>no future-outcome data</strong>—I cannot verify whether flagged pages that <em>did</em> receive a title/snippet review actually improved CTR over the next window. The label is a <em>rule-based proxy</em> (matches a pattern), not observed truth. Real validation requires either:
+                <ul>
+                    <li>Future 30–60d re-measurement of flagged pages</li>
+                    <li>Human reviewer feedback on sampled top-50 predictions</li>
+                    <li>Experimental design (randomized review on a subset)</li>
+                </ul>
+            </li>
+            <li>
+                <strong>Model 2 Leakage</strong><br>
+                The Random Forest with full features (precision@50 = 0.98) is overfitted to label structure, not trustworthy. It's included in results to document the failure, not to recommend deployment. Model 3 (harder variant) is more credible because it's forced to work without the label's defining signals.
+            </li>
+            <li>
+                <strong>Client Concentration</strong><br>
+                Top 5 of 32 clients = 56.8% of rows. Even with client-grouped splits, this means the model is learning patterns from a concentrated set of clients. Results may not generalize to new, unrepresented clients equally well.
+            </li>
+            <li>
+                <strong>Engagement Metrics Are Weak</strong><br>
+                Scroll rate, engagement rate, and word count show modest correlation with CTR (w04 signal audit: r &lt; 0.15). Model 3's precision@50 = 0.48 is only marginally better than random. The message: <strong>position and impressions structure the opportunity space, but engagement signals add little on their own.</strong>
+            </li>
+            <li>
+                <strong>Rule-Based Label, Not Observed Outcome</strong><br>
+                The threshold <code>CTR &lt; 0.5%</code> is a human choice, not data-driven. Nudging it to 0.3% or 0.7% changes the candidate pool by ~40%. There's no ground truth here, only a heuristic.
+            </li>
+            <li>
+                <strong>No Causal Claims</strong><br>
+                This analysis is <strong>correlational and observational</strong>. I cannot claim that a title/snippet rewrite <em>causes</em> CTR to rise. The low CTR could be due to poor metadata, low search demand at that query intent, poor page quality, or measurement lag. The ranking is a <em>candidate list for human review</em>, not a verdict.
+            </li>
+        </ol>
+
+        <div class="callout">
+            <h3>Language Used</h3>
+            <ul>
+                <li><strong>"Observed patterns"</strong>: These are correlations in this snapshot, not universal laws</li>
+                <li><strong>"Directional signal"</strong>: Weak but consistent direction, not proof</li>
+                <li><strong>"Candidates for review"</strong>: Pages worth a human look, ranked by confidence in the opportunity pattern</li>
+                <li><strong>"Decision-support"</strong>: Helps prioritize a backlog, doesn't decide</li>
+            </ul>
+        </div>
+    </section>
+
+    <section id="recommendations">
+        <h2>6. Ranked Recommendations &amp; Action Playbook</h2>
+
+        <h3>Output Structure</h3>
+        <p>For each page in the top-50 ranked list, provide:</p>
+        <ol>
+            <li><code>content_id</code> (pseudonymized key for lookup)</li>
+            <li>Predicted opportunity score (0–1, higher = stronger fit to pattern)</li>
+            <li>Reason code (primary signal driving the flag)</li>
+            <li>Secondary metrics (word_count, scroll_rate, position, CTR)</li>
+        </ol>
+
+        <h3>Interpretation Guide for Reviewers</h3>
+        
+        <p><strong>High score (0.8+) + high word_count + low scroll_rate:</strong><br>
+        &rarr; Long article, visitors aren't scrolling. Consider: (a) title/snippet clearer on value prop, (b) opening paragraph stronger, (c) check if search intent is mismatched.</p>
+
+        <p><strong>High score + position 5-10 + very low CTR (&lt; 0.1%):</strong><br>
+        &rarr; Ranking but nearly invisible. Title/snippet is likely the culprit (misaligned with search intent or weak hook). Rewrite should address search intent clarity.</p>
+
+        <p><strong>Moderate score (0.5-0.7) + trend_direction == "down":</strong><br>
+        &rarr; Page is losing visibility or CTR. Could be stale (old publish date) or sliding rank. Prioritize after high-score items, but include in this week's queue.</p>
+
+        <p><strong>Low score (&lt; 0.3) despite position &lt;= 20:</strong><br>
+        &rarr; Page doesn't fit the "high visibility, low click" pattern. Either CTR is acceptable already, or impressions are too low to trust. Skip for now; re-queue if impressions grow.</p>
+
+        <h3>Expected Capacity Impact</h3>
+        <ul>
+            <li><strong>Baseline rate:</strong> 50 pages/week</li>
+            <li><strong>Recommended top-50 per week:</strong> Focus on predicted score &gt;= 0.50</li>
+            <li><strong>Expected true positives (per Model 3):</strong> ~24 of 50 (48% precision) match the rule. Rest are model errors but may still be worth reviewing (see false positive examples above).</li>
+        </ul>
+
+        <h3>Continuous Monitoring</h3>
+        <p>Collect reviewer feedback on top-50 recommendations each week:</p>
+        <ul>
+            <li>Did reviewing the page reveal a low-CTR problem?</li>
+            <li>Was there a follow-up (title rewrite, metadata refresh, etc.)?</li>
+            <li>Did the action improve CTR over the next window?</li>
+        </ul>
+        <p>This ground truth should feed back into future model training, replacing the rule-based label with observed outcomes.</p>
+    </section>
+
+    <section id="reproducibility">
+        <h2>7. Reproducibility</h2>
+
+        <h3>Notebooks &amp; Code</h3>
+        <p>All work lives in the repo under <code>work/notebooks/</code>:</p>
+        <ul>
+            <li><code>w01_research_question.ipynb</code> — Lane choice, capacity analysis, business case</li>
+            <li><code>w02_ml_task_framing.ipynb</code> — ML task definition, label design, unit of analysis</li>
+            <li><code>w03_data_contract.ipynb</code> — Field definitions, missing value rates, data quality checks</li>
+            <li><code>w03_feature_leakage_check.ipynb</code> — Leakage audit, single-feature AUC, excluded fields with justification</li>
+            <li><code>w04_baseline_score.ipynb</code> — Hand-coded decision tree baseline, precision@K comparison</li>
+            <li><code>w04_signal_audit.ipynb</code> — Signal validation (does position predict CTR? Does word_count predict engagement?) and audit of existing flags</li>
+            <li><code>w05_model.ipynb</code> — Logistic regression and Random Forest models, error analysis, Model 2 leakage diagnosis, Model 3 (harder variant) training and validation</li>
+        </ul>
+
+        <h3>Data Access</h3>
+        <ul>
+            <li>Source: FlyRank ML Internship dataset, Hugging Face (gated, 2-minute request)</li>
+            <li>Load via: <code>pd.read_csv("content_refresh_anonymized.csv")</code></li>
+            <li>All field definitions in <code>w03_data_contract.ipynb</code></li>
+        </ul>
+
+        <h3>Dependencies</h3>
+<pre><code>pandas &gt;= 1.3
+scikit-learn &gt;= 1.0
+numpy &gt;= 1.20
+matplotlib / seaborn (for optional viz in notebooks)</code></pre>
+
+        <h3>Running the Capstone End-to-End</h3>
+        <ol>
+            <li>Download data from HF (see above)</li>
+            <li>Run notebooks in order: w01 &rarr; w02 &rarr; w03 &rarr; w03_feature_leakage &rarr; w04_baseline &rarr; w04_signal &rarr; w05_model</li>
+            <li>Each notebook produces a <code>work/outputs/</code> CSV (final predictions, baseline scores, feature importance)</li>
+            <li>This paper links to specific cells for each claim</li>
+        </ol>
+    </section>
+
+    <section id="acknowledgments">
+        <h2>8. Acknowledgments &amp; Data Credit</h2>
+        <p>This work is built on the <strong>FlyRank ML Internship dataset</strong>, a real search-performance snapshot shared for educational and research purposes. FlyRank collects anonymized, aggregated search and engagement data across a portfolio of content properties. Learn more at <a href="https://flyrank.ai" target="_blank" rel="noopener">https://flyrank.ai</a>.</p>
+
+        <p><strong>Data Anonymization:</strong> All client names, content URLs, domains, and raw query text have been removed or pseudonymized. Identifiers like <code>client_*</code> and <code>content_*</code> are opaque hashes; no sensitive information is recoverable from this paper or notebooks.</p>
+
+        <p><strong>Model &amp; Methodology:</strong> Label design, feature engineering, and validation approach are my own; final recommendations should be validated with domain experts (content ops, SEO) before deploying to production.</p>
+    </section>
+
+    <section id="appendix">
+        <h2>Appendix: Key Statistics</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Statistic</th>
+                    <th>Value</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Total rows (after cleaning)</td>
+                    <td>28,795</td>
+                </tr>
+                <tr>
+                    <td>Positive label rate</td>
+                    <td>33.9%</td>
+                </tr>
+                <tr>
+                    <td>Median position</td>
+                    <td>10.8</td>
+                </tr>
+                <tr>
+                    <td>Median impressions_90d</td>
+                    <td>731</td>
+                </tr>
+                <tr>
+                    <td>Median CTR</td>
+                    <td>0.07%</td>
+                </tr>
+                <tr>
+                    <td>Median word_count</td>
+                    <td>4,892 (of 21,077 non-null)</td>
+                </tr>
+                <tr>
+                    <td>Unique clients</td>
+                    <td>32</td>
+                </tr>
+                <tr>
+                    <td>Train rows</td>
+                    <td>22,024</td>
+                </tr>
+                <tr>
+                    <td>Test rows</td>
+                    <td>6,771</td>
+                </tr>
+                <tr>
+                    <td>Baseline precision@50</td>
+                    <td>0.60</td>
+                </tr>
+                <tr>
+                    <td>Model 3 precision@50</td>
+                    <td>0.48</td>
+                </tr>
+                <tr>
+                    <td>Model 3 top feature (word_count importance)</td>
+                    <td>0.286</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <footer>
+        <p><em>Last updated: September 2026</em><br>
+        <em>Repo: [Your GitHub repo URL] | Paper: this file</em><br>
+        <em>Questions? See w01–w05 notebooks for detailed working.</em></p>
+    </footer>
+</article>
+
+</body>
+</html>
